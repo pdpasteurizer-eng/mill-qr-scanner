@@ -1,1 +1,609 @@
+<!DOCTYPE html>
+<html lang="th">
 
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>MILL QR SCANNER</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #ffffff;
+      color: #172033;
+      font-family:
+        Arial,
+        "Noto Sans Thai",
+        sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+      margin: auto;
+    }
+
+    .header {
+      text-align: center;
+      padding: 20px 10px;
+    }
+
+    .icon {
+      font-size: 45px;
+    }
+
+    h1 {
+      margin: 5px 0;
+      font-size: 26px;
+    }
+
+    .subtitle {
+      color: #667085;
+      font-size: 14px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e4e7ec;
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 5px 18px rgba(0,0,0,.05);
+    }
+
+    .title {
+      font-size: 17px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 14px;
+      background: #f5f6f8;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #f2f4f7;
+      font-size: 14px;
+    }
+
+    .success {
+      background: #e9f8ef;
+      color: #14733b;
+    }
+
+    .error {
+      background: #fff0f0;
+      color: #b42318;
+    }
+
+    button {
+      width: 100%;
+      height: 48px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 12px;
+      background: #1677ff;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    button.secondary {
+      background: white;
+      color: #172033;
+      border: 1px solid #d0d5dd;
+    }
+
+    input {
+      width: 100%;
+      height: 48px;
+      padding: 0 12px;
+      border: 1px solid #d0d5dd;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    #result {
+      display: none;
+    }
+
+    .qr-data {
+      padding: 12px;
+      background: #f5f7fa;
+      border-radius: 10px;
+      word-break: break-all;
+      font-size: 14px;
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+
+  <div class="header">
+
+    <div class="icon">
+      📷
+    </div>
+
+    <h1>
+      MILL QR SCANNER
+    </h1>
+
+    <div class="subtitle">
+      ระบบสแกน QR สำหรับการนำเข้าโม่
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="title">
+      📷 กล้องสแกน QR
+    </div>
+
+    <div id="reader"></div>
+
+    <div
+      id="status"
+      class="status"
+    >
+      กด "เริ่มสแกน QR"
+    </div>
+
+    <button
+      onclick="startScanner()"
+    >
+      ▶ เริ่มสแกน QR
+    </button>
+
+    <button
+      class="secondary"
+      onclick="stopScanner()"
+    >
+      ■ หยุดกล้อง
+    </button>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="title">
+      ⚙️ Google Apps Script
+    </div>
+
+    <label>
+      Google Apps Script Web App URL
+    </label>
+
+    <input
+      id="appUrl"
+      type="url"
+      placeholder="https://script.google.com/macros/s/xxxxx/exec"
+    >
+
+    <button
+      onclick="saveUrl()"
+    >
+      💾 บันทึก URL
+    </button>
+
+  </div>
+
+
+  <div
+    id="result"
+    class="card"
+  >
+
+    <div class="title">
+      ✅ อ่าน QR สำเร็จ
+    </div>
+
+    <div
+      id="qrText"
+      class="qr-data"
+    ></div>
+
+    <button
+      onclick="sendToApp()"
+    >
+      ➜ ส่งข้อมูลเข้าระบบ
+    </button>
+
+  </div>
+
+
+</div>
+
+
+<script>
+
+let scanner = null;
+
+let scanning = false;
+
+let lastQR = "";
+
+
+/* โหลด URL ที่บันทึกไว้ */
+
+const savedUrl =
+  localStorage.getItem(
+    "MILL_APP_URL"
+  );
+
+if (savedUrl) {
+
+  document
+    .getElementById("appUrl")
+    .value = savedUrl;
+
+}
+
+
+/* สถานะ */
+
+function setStatus(
+  message,
+  type = ""
+) {
+
+  const el =
+    document.getElementById(
+      "status"
+    );
+
+  el.textContent =
+    message;
+
+  el.className =
+    "status " + type;
+
+}
+
+
+/* บันทึก URL */
+
+function saveUrl() {
+
+  const url =
+    document
+      .getElementById("appUrl")
+      .value
+      .trim();
+
+
+  if (!url) {
+
+    setStatus(
+      "กรุณาใส่ Google Apps Script URL",
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  localStorage.setItem(
+    "MILL_APP_URL",
+    url
+  );
+
+
+  setStatus(
+    "บันทึก URL สำเร็จ ✓",
+    "success"
+  );
+
+}
+
+
+/* เริ่มกล้อง */
+
+async function startScanner() {
+
+  if (scanning) {
+
+    return;
+
+  }
+
+
+  try {
+
+    setStatus(
+      "กำลังขอสิทธิ์ใช้กล้อง..."
+    );
+
+
+    if (!scanner) {
+
+      scanner =
+        new Html5Qrcode(
+          "reader"
+        );
+
+    }
+
+
+    const cameras =
+      await Html5Qrcode
+        .getCameras();
+
+
+    if (
+      !cameras ||
+      cameras.length === 0
+    ) {
+
+      throw new Error(
+        "ไม่พบกล้อง"
+      );
+
+    }
+
+
+    let camera =
+      cameras.find(
+        c =>
+          /back|rear|environment|หลัง/i
+            .test(c.label)
+      );
+
+
+    if (!camera) {
+
+      camera =
+        cameras[
+          cameras.length - 1
+        ];
+
+    }
+
+
+    scanning = true;
+
+
+    await scanner.start(
+
+      camera.id,
+
+      {
+        fps: 10,
+
+        qrbox:
+          function(
+            width,
+            height
+          ) {
+
+            const size =
+              Math.floor(
+                Math.min(
+                  width,
+                  height
+                ) * 0.70
+              );
+
+            return {
+              width: size,
+              height: size
+            };
+
+          }
+
+      },
+
+      onScanSuccess,
+
+      function() {}
+
+    );
+
+
+    setStatus(
+      "กำลังสแกน QR... กรุณาจ่อ QR ให้อยู่ในกรอบ",
+      "success"
+    );
+
+
+  } catch (error) {
+
+    scanning = false;
+
+    console.error(
+      error
+    );
+
+
+    setStatus(
+      "เปิดกล้องไม่ได้: " +
+      (
+        error.message ||
+        error
+      ),
+      "error"
+    );
+
+  }
+
+}
+
+
+/* อ่าน QR สำเร็จ */
+
+async function onScanSuccess(
+  decodedText
+) {
+
+  if (!decodedText) {
+
+    return;
+
+  }
+
+
+  if (
+    decodedText === lastQR
+  ) {
+
+    return;
+
+  }
+
+
+  lastQR =
+    decodedText;
+
+
+  document
+    .getElementById("qrText")
+    .textContent =
+    decodedText;
+
+
+  document
+    .getElementById("result")
+    .style.display =
+    "block";
+
+
+  setStatus(
+    "อ่าน QR สำเร็จ ✓",
+    "success"
+  );
+
+
+  await stopScanner();
+
+
+  setTimeout(
+    sendToApp,
+    500
+  );
+
+}
+
+
+/* หยุดกล้อง */
+
+async function stopScanner() {
+
+  if (
+    scanner &&
+    scanning
+  ) {
+
+    try {
+
+      await scanner.stop();
+
+    } catch (error) {
+
+      console.log(error);
+
+    }
+
+  }
+
+
+  scanning = false;
+
+}
+
+
+/* ส่ง QR เข้า Apps Script */
+
+function sendToApp() {
+
+  const baseUrl =
+    localStorage.getItem(
+      "MILL_APP_URL"
+    ) ||
+    document
+      .getElementById("appUrl")
+      .value
+      .trim();
+
+
+  if (!baseUrl) {
+
+    setStatus(
+      "ยังไม่ได้ตั้งค่า Google Apps Script URL",
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  if (!lastQR) {
+
+    return;
+
+  }
+
+
+  const separator =
+    baseUrl.includes("?")
+      ? "&"
+      : "?";
+
+
+  const target =
+    baseUrl +
+    separator +
+    "qr=" +
+    encodeURIComponent(
+      lastQR
+    );
+
+
+  window.location.href =
+    target;
+
+}
+
+</script>
+
+
+</body>
+
+</html>
